@@ -27,9 +27,6 @@ Each diameter segment functions as an individual object in the model tree, allow
 3. Restart FreeCAD and select **Shaft Generator** from the Workbenches menu.
 
 ---
-
-## 🤖 AI-Assisted Development
-
 ## 🤖 AI-Assisted Development (An Engineer's Approach)
 
 I am an engineering student, not a software developer, and honestly, I didn't even know where to begin with coding a FreeCAD extension. I originally needed a quick tool like this for my internship, so I built this workbench as a personal learning project by leveraging AI tools to bridge the coding gap. 
