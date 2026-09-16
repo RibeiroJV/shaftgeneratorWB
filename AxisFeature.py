@@ -36,6 +36,11 @@ THREAD_LEFT = "Left (Esquerda)"
 THREAD_RIGHT = "Right (Direita)"
 THREAD_SIDES = [THREAD_LEFT, THREAD_RIGHT]
 
+KEYWAY_FORM_A = "Forma A - Arredondada nas duas pontas"
+KEYWAY_FORM_B = "Forma B - Reta nas duas pontas"
+KEYWAY_FORM_C = "Forma C - Uma ponta arredondada, outra reta"
+KEYWAY_END_FORMS = [KEYWAY_FORM_A, KEYWAY_FORM_B, KEYWAY_FORM_C]
+
 
 def _base_shape(obj):
     """Build the plain shape oriented along the local X-axis."""
@@ -74,9 +79,42 @@ def _base_shape(obj):
         base = Part.makeCylinder(
             d / 2.0, length, App.Vector(0, 0, 0), App.Vector(1, 0, 0)
         )
+        # Part.makeCylinder always closes its periodic surface with a seam
+        # edge; for an axis extruded along +X, OCC places it at local
+        # Y=+radius by default, which shows up as a straight line running
+        # the full length of the shaft on the "front" side in the default
+        # view. The seam can't be deleted (it's required to describe a
+        # periodic surface), but rotating the finished solid about its own
+        # axis of symmetry doesn't change the shape at all - only where the
+        # seam sits - so we move it to the underside (-Z) where it's out of
+        # the way in the default 3D/TechDraw views.
+        base.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), -90.0)
         half = d / 2.0
 
     return base, half
+
+
+def keyway_effective_extent(obj):
+    """Return the (position, length) the keyway actually occupies along
+    the segment's local X-axis, after applying Forma C's tip-pinning.
+
+    Shared between the 3D shape generation (_apply_keyway) and the
+    TechDraw annotation code, so the section cut/leader always land where
+    the slot really is instead of drifting out of sync with it.
+    """
+    ln = obj.KeywayLength.Value
+    seg_len = obj.Length.Value
+    end_form = getattr(obj, "KeywayEndForm", KEYWAY_FORM_A)
+    invert = getattr(obj, "KeywayInvertEnds", False)
+
+    if end_form == KEYWAY_FORM_C:
+        ln = min(ln, seg_len)
+        pos = 0.0 if invert else max(0.0, seg_len - ln)
+    else:
+        pos = max(0.0, min(obj.KeywayPosition.Value, seg_len))
+        ln = min(ln, seg_len - pos)
+
+    return pos, ln
 
 
 def _apply_keyway(shape, obj, half):
@@ -90,13 +128,78 @@ def _apply_keyway(shape, obj, half):
     if w <= 0 or d <= 0 or ln <= 0 or d >= half:
         return shape
 
-    pos = max(0.0, min(obj.KeywayPosition.Value, seg_len))
-    ln = min(ln, seg_len - pos)
+    # A real keyway is milled with a round end-mill, so each end is
+    # naturally capped by a semicircle whose diameter equals the slot
+    # width (the mill's own diameter) - DIN 6885 "Forma A". Some keyways
+    # instead need a flat/square end (Forma B), or a flat end only where
+    # the slot runs off the tip of the shaft (Forma C). KeywayEndForm picks
+    # which of the two ends gets the round cap; for Forma C, KeywayInvertEnds
+    # flips which end (segment start vs. segment end) is the flat one.
+    end_form = getattr(obj, "KeywayEndForm", KEYWAY_FORM_A)
+    invert = getattr(obj, "KeywayInvertEnds", False)
+    round_start = end_form != KEYWAY_FORM_B
+    round_end = end_form == KEYWAY_FORM_A
+    if end_form == KEYWAY_FORM_C and invert:
+        round_start, round_end = round_end, round_start
+
+    # An "open" (Forma C) keyway is pinned flush with a tip of the segment;
+    # KeywayPosition is ignored/hidden in that mode. See
+    # keyway_effective_extent() for the shared position/length logic.
+    pos, ln = keyway_effective_extent(obj)
+
     if ln <= 0:
         return shape
 
+    r = w / 2.0
+    min_len = (r if round_start else 0.0) + (r if round_end else 0.0)
+    if ln < min_len:
+        # Not enough length for the requested rounded end(s) to fit
+        # without overlapping; grow to the minimum valid length.
+        ln = min_len
+        pos = max(0.0, min(pos, seg_len - ln))
+
+    x_start = pos + (r if round_start else 0.0)
+    x_end = pos + ln - (r if round_end else 0.0)
+    straight = x_end - x_start
+
+    if round_start and round_end and straight <= 1e-6:
+        # Both ends round and no room for a straight middle section: the
+        # slot collapses to a single round-ended (fully circular) pocket.
+        center = App.Vector((x_start + x_end) / 2.0, 0, 0)
+        footprint = Part.Face(
+            Part.Wire(Part.makeCircle(r, center, App.Vector(0, 0, 1)))
+        )
+    else:
+        p_start_bottom = App.Vector(x_start, -r, 0)
+        p_end_bottom = App.Vector(x_end, -r, 0)
+        p_end_top = App.Vector(x_end, r, 0)
+        p_start_top = App.Vector(x_start, r, 0)
+
+        line_bottom = Part.LineSegment(p_start_bottom, p_end_bottom).toShape()
+
+        if round_end:
+            end_cap = Part.Arc(
+                p_end_bottom, App.Vector(x_end + r, 0, 0), p_end_top
+            ).toShape()
+        else:
+            end_cap = Part.LineSegment(p_end_bottom, p_end_top).toShape()
+
+        line_top = Part.LineSegment(p_end_top, p_start_top).toShape()
+
+        if round_start:
+            start_cap = Part.Arc(
+                p_start_top, App.Vector(x_start - r, 0, 0), p_start_bottom
+            ).toShape()
+        else:
+            start_cap = Part.LineSegment(p_start_top, p_start_bottom).toShape()
+
+        wire = Part.Wire([line_bottom, end_cap, line_top, start_cap])
+        footprint = Part.Face(wire)
+
     overshoot = half + d + 5.0
-    tool = Part.makeBox(ln, w, overshoot, App.Vector(pos, -w / 2.0, half - d))
+    tool = footprint.extrude(App.Vector(0, 0, overshoot))
+    tool.translate(App.Vector(0, 0, half - d))
+
     angle = obj.KeywayAngle.Value
     if angle:
         tool.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), angle)
@@ -287,6 +390,44 @@ def _segment_label(child):
     return label
 
 
+def _ensure_keyway_end_form(obj):
+    """Add the KeywayEndForm/KeywayInvertEnds properties to segments that
+    predate them.
+
+    Existing documents (or segments already placed in the tree before these
+    properties were introduced) keep whatever properties they had when the
+    Python object was first created; a code update alone doesn't retrofit
+    them. Calling this on execute()/onDocumentRestored() self-heals those
+    older segments instead of requiring the user to delete and recreate
+    them.
+    """
+    kw_mode = 0 if getattr(obj, "HasKeyway", False) else 2
+
+    if not hasattr(obj, "KeywayEndForm"):
+        obj.addProperty(
+            "App::PropertyEnumeration",
+            "KeywayEndForm",
+            "Chaveta",
+            "End shape, per DIN 6885: Forma A = round both ends, Forma B ="
+            " flat/square both ends, Forma C = round on one end, flat on"
+            " the other (open end, e.g. keyway that runs to the shaft tip)",
+        )
+        obj.KeywayEndForm = KEYWAY_END_FORMS
+        obj.KeywayEndForm = KEYWAY_FORM_A
+        obj.setEditorMode("KeywayEndForm", kw_mode)
+
+    if not hasattr(obj, "KeywayInvertEnds"):
+        obj.addProperty(
+            "App::PropertyBool",
+            "KeywayInvertEnds",
+            "Chaveta",
+            "Forma C only: swap which end is round and which is flat."
+            " Off = round end towards the segment start (KeywayPosition"
+            " side), flat end towards the segment end. On = the reverse.",
+        ).KeywayInvertEnds = False
+        obj.setEditorMode("KeywayInvertEnds", kw_mode)
+
+
 class Segment:
 
     def __init__(self, obj):
@@ -356,6 +497,7 @@ class Segment:
         obj.addProperty(
             "App::PropertyAngle", "KeywayAngle", "Chaveta", "Angular position"
         ).KeywayAngle = 0.0
+        _ensure_keyway_end_form(obj)
 
         # Groove
         obj.addProperty(
@@ -449,10 +591,18 @@ class Segment:
             "KeywayWidth",
             "KeywayDepth",
             "KeywayLength",
-            "KeywayPosition",
             "KeywayAngle",
+            "KeywayEndForm",
+            "KeywayInvertEnds",
         ):
             obj.setEditorMode(prop, kw_mode)
+
+        # Forma C pins the flat end flush with a tip of the segment
+        # (start or end, per KeywayInvertEnds) and derives its position
+        # from that automatically, so KeywayPosition doesn't apply.
+        is_form_c = getattr(obj, "KeywayEndForm", KEYWAY_FORM_A) == KEYWAY_FORM_C
+        pos_mode = 2 if (obj.HasKeyway and is_form_c) else kw_mode
+        obj.setEditorMode("KeywayPosition", pos_mode)
 
         gr_mode = 0 if obj.HasGroove else 2
         for prop in ("GrooveWidth", "GrooveDepth", "GroovePosition"):
@@ -481,6 +631,7 @@ class Segment:
     def execute(self, obj):
         if Part is None:
             return
+        _ensure_keyway_end_form(obj)
         result = _base_shape(obj)
         if result is None:
             return
@@ -492,6 +643,12 @@ class Segment:
         shape = _apply_thread(shape, obj, half, profile)
 
         obj.Shape = shape
+
+    def onDocumentRestored(self, obj):
+        # Segments saved before KeywayEndForm existed won't have the
+        # property restored from the file; add it back in so old shafts
+        # keep working (defaulting to the old Forma A / round-round look).
+        _ensure_keyway_end_form(obj)
 
     def onChanged(self, obj, prop):
         if prop == "Length":

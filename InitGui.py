@@ -18,7 +18,7 @@ class AxisGeneratorWorkbench(Gui.Workbench):
     # matter day-to-day, and those (in AxisGeneratorCmds.py / AxisFeature.py)
     # are resolved through real methods at full module load, where our
     # bundled custom SVGs work reliably - see AxisIcons.py.
-    Icon = "Std_Part"
+    Icon = "/Resources/icons/workbench.svg"
 
     def Initialize(self):
         import AxisGeneratorCmds  # noqa: F401

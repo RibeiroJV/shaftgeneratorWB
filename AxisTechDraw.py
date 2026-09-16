@@ -1,5 +1,14 @@
 import FreeCAD as App
 
+try:
+    from AxisFeature import keyway_effective_extent
+except ImportError:
+    def keyway_effective_extent(obj):
+        # Fallback if AxisFeature isn't importable for some reason: mirror
+        # the pre-Forma-C behaviour (plain position + length).
+        pos = getattr(obj, "KeywayPosition", App.Units.Quantity("0mm")).Value
+        return pos, getattr(obj, "KeywayLength", App.Units.Quantity("0mm")).Value
+
 def update_axis_techdraw(axis_obj, page_obj, front_view_obj):
     """
     Cleans up old annotations and rebuilds Tiered Dimensions, 
@@ -49,10 +58,9 @@ def update_axis_techdraw(axis_obj, page_obj, front_view_obj):
 
         # TIER 0: KEYWAY SECTION CUT & LEADER CALLOUT
         if getattr(seg, "HasKeyway", False):
-            kw_l = getattr(seg, "KeywayLength", App.Units.Quantity("0mm")).Value
             kw_w = getattr(seg, "KeywayWidth", App.Units.Quantity("0mm")).Value
             kw_d = getattr(seg, "KeywayDepth", App.Units.Quantity("0mm")).Value
-            kw_pos = getattr(seg, "KeywayPosition", App.Units.Quantity("0mm")).Value
+            kw_pos, kw_l = keyway_effective_extent(seg)
 
             cut_x = current_x + kw_pos + (kw_l / 2.0)
             sec_symbol = chr(65 + (idx % 26))

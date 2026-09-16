@@ -127,14 +127,52 @@ def _find_target_axis():
     return None
 
 
+def _all_axes(doc):
+    return [obj for obj in doc.Objects if _is_axis(obj)]
+
+
+def _resolve_target_axis(doc):
+    """Find which Axis a new segment should be added to, without ever
+    creating one implicitly - that's what the 'Create Axis' button is for.
+
+    - Selection (an Axis or one of its segments) always wins.
+    - With nothing selected: if there's exactly one Axis in the document,
+      use it (the common case, no need to force a selection every time).
+    - With nothing selected and zero or multiple Axes, it's ambiguous -
+      ask the user to select (or create) one instead of guessing.
+    """
+    axis = _find_target_axis()
+    if axis is not None:
+        return axis
+
+    axes = _all_axes(doc)
+    if len(axes) == 1:
+        return axes[0]
+
+    if not axes:
+        QtWidgets.QMessageBox.information(
+            None,
+            "Nenhum Eixo Encontrado",
+            "Não há nenhum Eixo neste documento ainda.\n\n"
+            "Clique em 'Create Axis' para criar um antes de adicionar"
+            " segmentos.",
+        )
+    else:
+        QtWidgets.QMessageBox.information(
+            None,
+            "Selecione um Eixo",
+            "Há mais de um Eixo neste documento.\n\n"
+            "Selecione o Eixo (ou um segmento dele) ao qual deseja"
+            " adicionar o novo segmento e tente novamente.",
+        )
+    return None
+
+
 def _create_segment_for_profile(profile):
     doc = _active_doc()
-    axis = _find_target_axis()
+    axis = _resolve_target_axis(doc)
     if axis is None:
-        axis = doc.addObject("App::DocumentObjectGroupPython", "Axis")
-        AxisFeature.Axis(axis)
-        if Gui.ActiveDocument:
-            AxisFeature.ViewProviderAxis(axis.ViewObject)
+        return
 
     if profile == AxisFeature.PROFILE_SQUARE:
         size_label = "Side Width / Lado (mm):"
