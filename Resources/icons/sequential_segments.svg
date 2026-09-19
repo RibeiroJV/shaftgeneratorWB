@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gPink" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a14a7e"/>
+      <stop offset="0.5" stop-color="#e78fbe"/>
+      <stop offset="1" stop-color="#a14a7e"/>
+    </linearGradient>
+    <linearGradient id="gOrange" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9c5f06"/>
+      <stop offset="0.5" stop-color="#f5a623"/>
+      <stop offset="1" stop-color="#9c5f06"/>
+    </linearGradient>
+    <linearGradient id="gLime" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5d7d00"/>
+      <stop offset="0.5" stop-color="#a4cc00"/>
+      <stop offset="1" stop-color="#5d7d00"/>
+    </linearGradient>
+    <linearGradient id="gGreen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1f6b2c"/>
+      <stop offset="0.5" stop-color="#43b25a"/>
+      <stop offset="1" stop-color="#1f6b2c"/>
+    </linearGradient>
+    <linearGradient id="gPurple" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8e4f8a"/>
+      <stop offset="0.5" stop-color="#e09ad9"/>
+      <stop offset="1" stop-color="#8e4f8a"/>
+    </linearGradient>
+    <linearGradient id="gGold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#9c6a14"/>
+      <stop offset="0.5" stop-color="#f7b53b"/>
+      <stop offset="1" stop-color="#9c6a14"/>
+    </linearGradient>
+    <linearGradient id="gBrown" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6e4d14"/>
+      <stop offset="0.5" stop-color="#c1913a"/>
+      <stop offset="1" stop-color="#6e4d14"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#eef3f6"/>
+  <g stroke="#1c1c1c" stroke-width="1">
+    <rect x="6" y="21" width="8" height="22" fill="url(#gPink)"/>
+    <rect x="14" y="14" width="10" height="36" fill="url(#gOrange)"/>
+    <rect x="24" y="6" width="10" height="52" fill="url(#gLime)"/>
+    <rect x="34" y="13" width="9" height="38" fill="url(#gGreen)"/>
+    <rect x="43" y="17" width="9" height="30" fill="url(#gPurple)"/>
+    <rect x="52" y="21" width="7" height="11" fill="url(#gGold)"/>
+    <rect x="52" y="32" width="7" height="11" fill="url(#gBrown)"/>
+  </g>
+  <line x1="4" y1="32" x2="60" y2="32" stroke="#1c1c1c" stroke-width="0.8" stroke-dasharray="4,3" opacity="0.65"/>
+</svg>
