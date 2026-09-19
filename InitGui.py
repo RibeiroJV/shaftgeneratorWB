@@ -16,6 +16,7 @@ class AxisGeneratorWorkbench(Gui.Workbench):
 
         self.stack_commands = [
             "AxisGen_CreateAxis",
+            "AxisGen_AddSequentialSegments",
             "AxisGen_AddCircularSegment",
             "AxisGen_AddSquareSegment",
             "AxisGen_AddHexSegment",

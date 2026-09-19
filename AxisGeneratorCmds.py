@@ -752,9 +752,142 @@ class MoveSegmentDownCommand(_ReorderCommand):
             "ToolTip": "Move selected segment later along the horizontal axis",
             "Pixmap": AxisIcons.icon("arrow_right.svg"),
         }
+class SequentialSegmentDialog(QtWidgets.QDialog):
+    """Dialog for rapidly adding multiple shaft segments sequentially."""
+
+    def __init__(self, axis_obj, parent=None):
+        super(SequentialSegmentDialog, self).__init__(parent)
+        self.axis = axis_obj
+        self.count = 0
+        self.setWindowTitle("Adicionar Múltiplos Segmentos")
+        self.resize(340, 240)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        form = QtWidgets.QFormLayout()
+
+        # Profile Type Selection
+        self.cmb_profile = QtWidgets.QComboBox()
+        self.cmb_profile.addItems([
+            AxisFeature.PROFILE_CIRCULAR,
+            AxisFeature.PROFILE_SQUARE,
+            AxisFeature.PROFILE_HEX,
+        ])
+        form.addRow("Tipo de Perfil:", self.cmb_profile)
+
+        # Size Input (Diameter / Width / Across Flats)
+        self.lbl_size = QtWidgets.QLabel("Diâmetro (mm):")
+        self.spn_size = QtWidgets.QDoubleSpinBox()
+        self.spn_size.setRange(0.01, 1000000.0)
+        self.spn_size.setValue(10.0)
+        self.spn_size.setDecimals(2)
+        self.spn_size.setSuffix(" mm")
+        form.addRow(self.lbl_size, self.spn_size)
+
+        # Length Input
+        self.spn_length = QtWidgets.QDoubleSpinBox()
+        self.spn_length.setRange(0.01, 1000000.0)
+        self.spn_length.setValue(20.0)
+        self.spn_length.setDecimals(2)
+        self.spn_length.setSuffix(" mm")
+        form.addRow("Comprimento (mm):", self.spn_length)
+
+        layout.addLayout(form)
+
+        # Status Tracker
+        self.lbl_status = QtWidgets.QLabel("Segmentos adicionados nesta sessão: 0")
+        self.lbl_status.setStyleSheet("font-weight: bold; color: #337ab7;")
+        layout.addWidget(self.lbl_status)
+
+        # Action Buttons
+        btn_layout = QtWidgets.QHBoxLayout()
+        self.btn_add = QtWidgets.QPushButton("Adicionar Próximo (Enter)")
+        self.btn_add.setDefault(True)  # Pressing Enter inside spinboxes triggers this
+
+        self.btn_finish = QtWidgets.QPushButton("Concluir")
+        btn_layout.addWidget(self.btn_add)
+        btn_layout.addWidget(self.btn_finish)
+        layout.addLayout(btn_layout)
+
+        # Signals
+        self.cmb_profile.currentIndexChanged.connect(self._on_profile_changed)
+        self.btn_add.clicked.connect(self._add_segment)
+        self.btn_finish.clicked.connect(self.accept)
+
+    def _on_profile_changed(self, index):
+        profile = self.cmb_profile.currentText()
+        if profile == AxisFeature.PROFILE_SQUARE:
+            self.lbl_size.setText("Lado / Largura (mm):")
+        elif profile == AxisFeature.PROFILE_HEX:
+            self.lbl_size.setText("Distância entre faces (mm):")
+        else:
+            self.lbl_size.setText("Diâmetro (mm):")
+
+    def _add_segment(self):
+        doc = self.axis.Document
+        profile = self.cmb_profile.currentText()
+        size = self.spn_size.value()
+        length = self.spn_length.value()
+
+        seg = doc.addObject("Part::FeaturePython", "Segment")
+        AxisFeature.Segment(seg)
+        if Gui.ActiveDocument:
+            AxisFeature.ViewProviderSegment(seg.ViewObject)
+
+        seg.ProfileType = profile
+        if profile == AxisFeature.PROFILE_SQUARE:
+            seg.Width = size
+        elif profile == AxisFeature.PROFILE_HEX:
+            seg.AcrossFlats = size
+        else:
+            seg.Diameter = size
+        seg.Length = length
+
+        group = list(self.axis.Group)
+        group.append(seg)
+        self.axis.Group = group
+
+        doc.recompute()
+        self.count += 1
+        self.lbl_status.setText(f"Segmentos adicionados nesta sessão: {self.count}")
+
+        # Re-select size value for fast typing of the next segment
+        self.spn_size.setFocus()
+        self.spn_size.selectAll()
+
+
+class AddSequentialSegmentsCommand:
+
+    def GetResources(self):
+        return {
+            "MenuText": "Add Multiple Segments (Sequence)",
+            "ToolTip": "Sequentially add multiple segments until finished",
+            "Pixmap": AxisIcons.icon("sequential_segments.svg"),
+        }
+
+    def Activated(self):
+        doc = _active_doc()
+        axis = _resolve_target_axis(doc)
+        if axis is None:
+            return
+
+        doc.openTransaction("Add Sequential Segments")
+        try:
+            dlg = SequentialSegmentDialog(axis)
+            dlg.exec_()
+
+            # When finished, set 3D view to Isometric and Fit to Screen
+            if dlg.count > 0 and Gui.ActiveDocument and Gui.ActiveDocument.ActiveView:
+                Gui.ActiveDocument.ActiveView.viewIsometric()
+                Gui.ActiveDocument.ActiveView.fitAll()
+        finally:
+            doc.commitTransaction()
+
+    def IsActive(self):
+        return App.ActiveDocument is not None
 
 
 Gui.addCommand("AxisGen_CreateAxis", CreateAxisCommand())
+Gui.addCommand("AxisGen_AddSequentialSegments", AddSequentialSegmentsCommand())
 Gui.addCommand("AxisGen_AddCircularSegment", AddCircularSegmentCommand())
 Gui.addCommand("AxisGen_AddSquareSegment", AddSquareSegmentCommand())
 Gui.addCommand("AxisGen_AddHexSegment", AddHexSegmentCommand())
