@@ -1,0 +1,60 @@
+# ==========================================
+# Python Runtime & Build Artifacts
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# ==========================================
+# FreeCAD Backup, Lock, & Log Files
+# ==========================================
+*.FCStd1
+*.FCStd2
+*.FCBak
+*.FCLock
+*.FCMat
+*.log
+FreeCAD.log
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ==========================================
+# IDEs & Code Editors
+# ==========================================
+# Visual Studio Code
+.vscode/
+
+# PyCharm / JetBrains
+.idea/
+
+# Sublime Text / Vim / Emacs
+*.sublime-workspace
+*.swp
+*~
+
+# ==========================================
+# OS Generated Files
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
